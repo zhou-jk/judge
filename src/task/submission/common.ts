@@ -84,8 +84,11 @@ export async function runCommonTask<
   const countUnspecfiedPercentagePointsForSubtasks = judgeInfo.subtasks.filter(
     testcase => testcase.points == null
   ).length;
+  const totalScore = task.extraInfo.problemTotalScore || 100;
   const defaultPercentagePointsForSubtasks =
-    (100 - sumSpecfiedPercentagePointsForSubtasks) / countUnspecfiedPercentagePointsForSubtasks;
+    countUnspecfiedPercentagePointsForSubtasks > 0
+      ? (totalScore - sumSpecfiedPercentagePointsForSubtasks) / countUnspecfiedPercentagePointsForSubtasks
+      : 0;
 
   const subtaskFullScores = judgeInfo.subtasks.map(subtask =>
     subtask.points != null ? subtask.points : defaultPercentagePointsForSubtasks
@@ -169,7 +172,7 @@ export async function runCommonTask<
 
   const subtaskOrder = getSubtaskOrder(judgeInfo);
   const subtaskScores: number[] = new Array(subtaskOrder.length);
-  let totalScore = 0;
+  let accumulatedScore = 0;
   for (const subtaskIndex of subtaskOrder) {
     const subtask = judgeInfo.subtasks[subtaskIndex];
 
@@ -196,7 +199,9 @@ export async function runCommonTask<
       testcase => testcase.points == null
     ).length;
     const defaultPercentagePointsForTestcases =
-      (100 - sumSpecfiedPercentagePointsForTestcases) / countUnspecfiedPercentagePointsForTestcases;
+      countUnspecfiedPercentagePointsForTestcases > 0
+        ? (100 - sumSpecfiedPercentagePointsForTestcases) / countUnspecfiedPercentagePointsForTestcases
+        : 0;
 
     const normalizedTestcases = subtask.testcases.map(testcase => ({
       ...testcase,
@@ -245,14 +250,11 @@ export async function runCommonTask<
     }
 
     subtaskScores[subtaskIndex] = subtaskScore;
-    totalScore += (subtaskScore * subtaskFullScores[subtaskIndex]) / 100;
+    accumulatedScore += (subtaskScore * subtaskFullScores[subtaskIndex]) / 100;
   }
 
-  const roundedScore = totalScore > 100 ? 100 : Math.round(totalScore);
-  if (firstNonAcceptedStatus === null && roundedScore !== 100) {
-    // This shouldn't happen
-    throw new Error("Couldn't determine submission result status");
-  } else if (firstNonAcceptedStatus === null) {
+  const roundedScore = Math.round(accumulatedScore);
+  if (firstNonAcceptedStatus === null) {
     task.events.finished(SubmissionStatus.Accepted, roundedScore);
   } else {
     task.events.finished(firstNonAcceptedStatus as unknown as SubmissionStatus, roundedScore);
